@@ -1,0 +1,1245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="hr">
+	<!-- 인사카드 개수 -->
+	<select id="getEmpCnt" parameterType="hashmap" resultType="Integer">
+	
+	SELECT COUNT(*) AS CNT
+		FROM (
+  SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+        SELECT ROW_NUMBER () OVER(ORDER BY E.EMPLY_NO DESC) AS B_NO, E.EMPLY_NO AS E_NO, TO_CHAR(E.EMPLY_NO, '0000000009') AS EMPLY_NO, E.PHTGR, E.EMPLY_NAME, C.CODE_NAME AS GNDER, TO_CHAR(E.BIRTH, 'YYYY-MM-DD') AS BIRTH,
+                C2.CODE_NAME AS SOLAR_LUNAR, E.ADRS, E.DTL_ADRS, E.PSTCD, SUBSTR(E.CLPHN_NO,1,3) || '-' || SUBSTR(E.CLPHN_NO,4,4) || '-' || SUBSTR(E.CLPHN_NO,8) AS CLPHN_NO, 
+                SUBSTR(E.SPARE_NO,1,3) || '-' || SUBSTR(E.SPARE_NO,4,4) || '-' || SUBSTR(E.SPARE_NO,7) AS SPARE_NO, E.EMAIL, C3.CODE_NAME AS EDCTN,
+			   E.ATHRTY_NO, D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME
+		FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS PA
+		                     ON E.EMPLY_NO = PA.EMPLY_NO
+		                    AND PA.END_DAY IS NULL
+		             LEFT OUTER JOIN DPRTMNT D
+		                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		             LEFT OUTER JOIN PSTN P
+		                     ON PA.PSTN_NO = P.PSTN_NO
+                    INNER JOIN CMN_CODE C
+                            ON E.GNDER = C.MINOR_CODE
+                            AND C.MAJOR_CODE = 7
+                    INNER JOIN CMN_CODE C2
+                            ON E.SOLAR_LUNAR = C2.MINOR_CODE
+                            AND C2.MAJOR_CODE = 15
+                    INNER JOIN CMN_CODE C3
+                            ON E.EDCTN = C3.MINOR_CODE
+                            AND C3.MAJOR_CODE = 16
+            WHERE ATHRTY_NO  != 1
+           <if test="sAthrtyNo != null and sAthrtyNo != ''">
+				<choose>
+					<when test="sAthrtyNo == 1 or sAthrtyNo == 2 or sAthrtyNo == 3 or sAthrtyNo == 4 or sAthrtyNo == 5"></when>
+					<when test="sAthrtyNo == 6 or sAthrtyNo == 8 or sAthrtyNo == 10">  AND D.DPRTMNT_NO = #{sDprtmntNo}</when>
+					<otherwise>AND E.EMPLY_NO = #{sEmplyNo}</otherwise>
+				</choose>
+			</if>
+			<if test="searchTxt != null and searchTxt != ''">
+				AND (TO_CHAR(E.EMPLY_NO, '0000000009') LIKE '%' || #{searchTxt} || '%'
+				OR E.PHTGR LIKE '%' || #{searchTxt} || '%'
+				OR E.EMPLY_NAME LIKE '%' || #{searchTxt} || '%'
+				OR C.CODE_NAME LIKE '%' || #{searchTxt} || '%'
+				OR SUBSTR(E.CLPHN_NO,1,3) || '-' || SUBSTR(E.CLPHN_NO,4,4) || '-' || SUBSTR(E.CLPHN_NO,8) LIKE '%' || #{searchTxt} || '%'
+				OR E.EMAIL LIKE '%' || #{searchTxt} || '%'
+				OR D.DPRTMNT_NAME LIKE '%' || #{searchTxt} || '%'
+				OR PSTN_NAME LIKE '%' || #{searchTxt} || '%') 
+			</if>
+				)
+			)
+	</select>
+	
+	<!-- 인사서류  개수 -->
+	<select id="getpdListcnt" parameterType="hashmap" resultType="Integer">
+	
+	SELECT COUNT(*) AS CNT
+	FROM (SELECT ROW_NUMBER () OVER (ORDER BY PRSNL_DCMNT_NO DESC) AS RNUM , PRSNL_DCMNT_NO, C.CODE_NAME AS PRSNL_DCMNT_KIND, WRT_DATE, E.EMPLY_NAME,  APRVAL_PRMSN_DATE, WRTR_NO
+			FROM PRSNL_DCMNT P INNER JOIN CMN_CODE C
+                           ON P.PRSNL_DCMNT_KIND_NO = C.MINOR_CODE
+                           AND C.MAJOR_CODE = 8
+           INNER JOIN EMPLY E
+                           ON P.EMPLY_NO = E.EMPLY_NO)
+
+	</select>
+	
+	<!-- 인사서류 리스트 -->
+	<select id="getpdList" parameterType="hashmap" resultType="hashmap">
+		SELECT RNUM,D_NO,PRSNL_DCMNT_NO,PRSNL_DCMNT_KIND,WRT_DATE,EMPLY_NAME,APRVAL_PRMSN_DATE,CONDITION,WRTR_NO,DCMNT_USE,BIRTH,DPRTMNT_NAME,PSTN_NAME,START_DAY,END_DAY,EMPLY_NO
+		FROM (
+			SELECT ROW_NUMBER () OVER (ORDER BY PRSNL_DCMNT_NO DESC) AS RNUM , PRSNL_DCMNT_NO AS D_NO,TO_CHAR(PRSNL_DCMNT_NO,'0000000009') AS PRSNL_DCMNT_NO, C.CODE_NAME AS PRSNL_DCMNT_KIND, TO_CHAR(WRT_DATE,'YYYYMMDD') AS WRT_DATE, E.EMPLY_NAME,  APRVAL_PRMSN_DATE, 
+                CASE WHEN S.SIGN_DATE IS NULL AND S.CAUSE IS NULL THEN '대기' WHEN S.SIGN_DATE IS NOT NULL AND S.CAUSE IS NULL THEN '완료' ELSE '반려' END AS CONDITION, P.WRTR_NO, P.DCMNT_USE, E.BIRTH, D.DPRTMNT_NAME, PS.PSTN_NAME, PA.START_DAY, PA.END_DAY, E.EMPLY_NO
+			FROM PRSNL_DCMNT P INNER JOIN CMN_CODE C
+                                          ON P.PRSNL_DCMNT_KIND_NO = C.MINOR_CODE
+                                          AND C.MAJOR_CODE = 8
+                               INNER JOIN EMPLY E
+                                           ON P.EMPLY_NO = E.EMPLY_NO
+                               LEFT OUTER JOIN PRSNL_APNTMNTS PA
+                                           ON E.EMPLY_NO = PA.EMPLY_NO
+                                LEFT OUTER JOIN DPRTMNT D
+                                           ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+                                LEFT OUTER JOIN PSTN PS
+         	                               ON PA.PSTN_NO = PS.PSTN_NO
+         	                     INNER JOIN SIGN S
+                                            ON P.PRSNL_DCMNT_NO = S.EXTRNL_LNKG_NO
+            WHERE 1=1
+            <if test="sAthrtyNo != null and sAthrtyNo != ''">
+				<choose>
+					<when test="sAthrtyNo == 1 or sAthrtyNo == 2 or sAthrtyNo == 3 or sAthrtyNo == 4"></when>
+					<otherwise>AND (WRTR_NO = #{sEmplyNo} OR E.EMPLY_NO = #{sEmplyNo})</otherwise>
+				</choose>
+			</if>
+            			
+			<if test="searchTxt != null and searchTxt != ''">
+				AND (C.CODE_NAME LIKE '%' || #{searchTxt} || '%'
+				OR TO_CHAR(WRT_DATE,'YYYYMMDD') LIKE '%' || #{searchTxt} || '%'
+				OR E.EMPLY_NAME LIKE '%' || #{searchTxt} || '%'
+				OR CASE WHEN APRVAL_PRMSN_DATE IS NULL THEN '대기' ELSE '완료' END LIKE '%' || #{searchTxt} || '%' ) 
+			</if>)
+            WHERE RNUM BETWEEN #{startCnt} AND #{endCnt}
+	</select>
+
+	<!-- 인사서류 개별조회 -->
+	<select id="getpd" parameterType="hashmap" resultType="hashmap">
+        SELECT RNUM,D_NO,PRSNL_DCMNT_NO,
+        	SUBSTR(PRSNL_DCMNT_KIND,1,1)||' '||SUBSTR(PRSNL_DCMNT_KIND,2,1)||' '||SUBSTR(PRSNL_DCMNT_KIND,3,1)||' '||SUBSTR(PRSNL_DCMNT_KIND,4,1)||' '||SUBSTR(PRSNL_DCMNT_KIND,5) AS PRSNL_DCMNT_KIND,
+				WRT_DATE,EMPLY_NAME,APRVAL_PRMSN_DATE,SUBSTR(CONDITION,1,1)||' '||SUBSTR(CONDITION,2) AS CONDITION,WRTR_NO,DCMNT_USE,BIRTH,DPRTMNT_NAME,
+				PSTN_NAME,TO_CHAR(START_DAY,'YYYY') AS START_DAY_Y, TO_CHAR(START_DAY,'MM') AS START_DAY_M, TO_CHAR(START_DAY,'DD') AS START_DAY_D,
+				TO_CHAR(END_DAY,'YYYY') AS END_DAY_Y, TO_CHAR(END_DAY,'MM') AS END_DAY_M, TO_CHAR(END_DAY,'DD') AS END_DAY_D,EMPLY_NO, ADRS, DTL_ADRS, PSTCD, WRTR_NAME,
+				TO_CHAR(SYSDATE,'YYYY') AS SYSDATE_Y, TO_CHAR(SYSDATE,'MM') AS SYSDATE_M, TO_CHAR(SYSDATE,'DD') AS SYSDATE_D
+		FROM (
+			SELECT ROW_NUMBER () OVER (ORDER BY PRSNL_DCMNT_NO DESC) AS RNUM , PRSNL_DCMNT_NO AS D_NO,TO_CHAR(PRSNL_DCMNT_NO,'0000000009') AS PRSNL_DCMNT_NO, 
+					C.CODE_NAME AS PRSNL_DCMNT_KIND, TO_CHAR(WRT_DATE,'YYYYMMDD') AS WRT_DATE, E.EMPLY_NAME,  APRVAL_PRMSN_DATE, 
+           			CASE WHEN APRVAL_PRMSN_DATE IS NULL THEN '대기' ELSE '완료' END AS CONDITION, P.WRTR_NO, P.DCMNT_USE, TO_CHAR(E.BIRTH,'YYYYMMDD') AS BIRTH, D.DPRTMNT_NAME, PS.PSTN_NAME, PA.START_DAY, 
+           			CASE WHEN PA.END_DAY IS NULL THEN SYSDATE ELSE PA.END_DAY END AS END_DAY, E.EMPLY_NO, E2.EMPLY_NAME AS WRTR_NAME, E.ADRS, E.DTL_ADRS, E.PSTCD
+			FROM PRSNL_DCMNT P INNER JOIN CMN_CODE C
+                                          ON P.PRSNL_DCMNT_KIND_NO = C.MINOR_CODE
+                                          AND C.MAJOR_CODE = 8
+                               INNER JOIN EMPLY E
+                                           ON P.EMPLY_NO = E.EMPLY_NO
+                                  INNER JOIN EMPLY E2
+                                            ON P.WRTR_NO = E2.EMPLY_NO
+                               LEFT OUTER JOIN PRSNL_APNTMNTS PA
+                                           ON E.EMPLY_NO = PA.EMPLY_NO
+                                LEFT OUTER JOIN DPRTMNT D
+                                           ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+                                LEFT OUTER JOIN PSTN PS
+         	                               ON PA.PSTN_NO = PS.PSTN_NO
+            WHERE PRSNL_DCMNT_NO = #{checkDocNo}
+            )
+	</select>
+	
+	<!-- 인사카드 리스트 -->
+	<select id="getEmpList" parameterType="hashmap" resultType="hashmap">
+		SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+  SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+        SELECT ROW_NUMBER () OVER(ORDER BY E.EMPLY_NO DESC) AS B_NO, E.EMPLY_NO AS E_NO, TO_CHAR(E.EMPLY_NO, '0000000009') AS EMPLY_NO, E.PHTGR, E.EMPLY_NAME, C.CODE_NAME AS GNDER, TO_CHAR(E.BIRTH, 'YYYY-MM-DD') AS BIRTH,
+                C2.CODE_NAME AS SOLAR_LUNAR, E.ADRS, E.DTL_ADRS, E.PSTCD, SUBSTR(E.CLPHN_NO,1,3) || '-' || SUBSTR(E.CLPHN_NO,4,4) || '-' || SUBSTR(E.CLPHN_NO,8) AS CLPHN_NO, 
+                SUBSTR(E.SPARE_NO,1,3) || '-' || SUBSTR(E.SPARE_NO,4,4) || '-' || SUBSTR(E.SPARE_NO,7) AS SPARE_NO, E.EMAIL, C3.CODE_NAME AS EDCTN,
+			   E.ATHRTY_NO, D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME
+		FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS PA
+		                     ON E.EMPLY_NO = PA.EMPLY_NO
+		                    AND PA.END_DAY IS NULL
+		             LEFT OUTER JOIN DPRTMNT D
+		                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		             LEFT OUTER JOIN PSTN P
+		                     ON PA.PSTN_NO = P.PSTN_NO
+                    INNER JOIN CMN_CODE C
+                            ON E.GNDER = C.MINOR_CODE
+                            AND C.MAJOR_CODE = 7
+                    INNER JOIN CMN_CODE C2
+                            ON E.SOLAR_LUNAR = C2.MINOR_CODE
+                            AND C2.MAJOR_CODE = 15
+                    INNER JOIN CMN_CODE C3
+                            ON E.EDCTN = C3.MINOR_CODE
+                            AND C3.MAJOR_CODE = 16
+            WHERE ATHRTY_NO  != 1
+           <if test="sAthrtyNo != null and sAthrtyNo != ''">
+				<choose>
+					<when test="sAthrtyNo == 1 or sAthrtyNo == 2 or sAthrtyNo == 3 or sAthrtyNo == 4 or sAthrtyNo == 5"></when>
+					<when test="sAthrtyNo == 6 or sAthrtyNo == 8 or sAthrtyNo == 10">  AND D.DPRTMNT_NO = #{sDprtmntNo}</when>
+					<otherwise>AND E.EMPLY_NO = #{sEmplyNo}</otherwise>
+				</choose>
+			</if>
+			
+				<if test="searchTxt != null and searchTxt != ''">
+				AND (TO_CHAR(E.EMPLY_NO, '0000000009') LIKE '%' || #{searchTxt} || '%'
+				OR E.PHTGR LIKE '%' || #{searchTxt} || '%'
+				OR E.EMPLY_NAME LIKE '%' || #{searchTxt} || '%'
+				OR C.CODE_NAME LIKE '%' || #{searchTxt} || '%'
+				OR SUBSTR(E.CLPHN_NO,1,3) || '-' || SUBSTR(E.CLPHN_NO,4,4) || '-' || SUBSTR(E.CLPHN_NO,8) LIKE '%' || #{searchTxt} || '%'
+				OR E.EMAIL LIKE '%' || #{searchTxt} || '%'
+				OR D.DPRTMNT_NAME LIKE '%' || #{searchTxt} || '%'
+				OR PSTN_NAME LIKE '%' || #{searchTxt} || '%') 
+			</if>)	
+			)
+            WHERE B_NO BETWEEN #{startCnt} AND #{endCnt}
+	</select>
+
+	<!-- 페이지 없는 인사카드 리스트 -->
+	<select id="getEmpListNp" parameterType="hashmap" resultType="hashmap">
+		SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+  SELECT ROW_NUMBER () OVER(ORDER BY E_NO DESC) AS B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+        SELECT E.EMPLY_NO AS E_NO, TO_CHAR(E.EMPLY_NO, '0000000009') AS EMPLY_NO, E.PHTGR, E.EMPLY_NAME, C.CODE_NAME AS GNDER, TO_CHAR(E.BIRTH, 'YYYY-MM-DD') AS BIRTH,
+                C2.CODE_NAME AS SOLAR_LUNAR, E.ADRS, E.DTL_ADRS, E.PSTCD, SUBSTR(E.CLPHN_NO,1,3) || '-' || SUBSTR(E.CLPHN_NO,4,4) || '-' || SUBSTR(E.CLPHN_NO,8) AS CLPHN_NO, 
+                SUBSTR(E.SPARE_NO,1,3) || '-' || SUBSTR(E.SPARE_NO,4,4) || '-' || SUBSTR(E.SPARE_NO,7) AS SPARE_NO, E.EMAIL, C3.CODE_NAME AS EDCTN,
+			   E.ATHRTY_NO, D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME
+		FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS PA
+		                     ON E.EMPLY_NO = PA.EMPLY_NO
+		                    AND PA.END_DAY IS NULL
+		             LEFT OUTER JOIN DPRTMNT D
+		                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		             LEFT OUTER JOIN PSTN P
+		                     ON PA.PSTN_NO = P.PSTN_NO
+                    INNER JOIN CMN_CODE C
+                            ON E.GNDER = C.MINOR_CODE
+                            AND C.MAJOR_CODE = 7
+                    INNER JOIN CMN_CODE C2
+                            ON E.SOLAR_LUNAR = C2.MINOR_CODE
+                            AND C2.MAJOR_CODE = 15
+                    INNER JOIN CMN_CODE C3
+                            ON E.EDCTN = C3.MINOR_CODE
+                            AND C3.MAJOR_CODE = 16
+            WHERE ATHRTY_NO  != 1
+				
+			<if test="searchTxt2 != null and searchTxt2 != ''">
+				AND (TO_CHAR(E.EMPLY_NO, '0000000009') LIKE '%' || #{searchTxt2} || '%'
+				OR E.EMPLY_NAME LIKE '%' || #{searchTxt2} || '%'
+				OR C.CODE_NAME LIKE '%' || #{searchTxt2} || '%'
+				OR E.EMAIL LIKE '%' || #{searchTxt2} || '%'
+				OR D.DPRTMNT_NAME LIKE '%' || #{searchTxt2} || '%'
+				OR PSTN_NAME LIKE '%' || #{searchTxt2} || '%') 
+			</if>)	
+			)
+	</select>
+
+	<!-- 페이지 없는 퇴사자 리스트 -->
+	<select id="getEmpListOp" parameterType="hashmap" resultType="hashmap">
+		SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+  SELECT ROW_NUMBER () OVER(ORDER BY E_NO DESC) AS B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,CLPHN_NO,SPARE_NO,EMAIL,EDCTN,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME
+        FROM (
+        SELECT E.EMPLY_NO AS E_NO, TO_CHAR(E.EMPLY_NO, '0000000009') AS EMPLY_NO, E.PHTGR, E.EMPLY_NAME, C.CODE_NAME AS GNDER, TO_CHAR(E.BIRTH, 'YYYY-MM-DD') AS BIRTH,
+                C2.CODE_NAME AS SOLAR_LUNAR, E.ADRS, E.DTL_ADRS, E.PSTCD, SUBSTR(E.CLPHN_NO,1,3) || '-' || SUBSTR(E.CLPHN_NO,4,4) || '-' || SUBSTR(E.CLPHN_NO,8) AS CLPHN_NO, 
+                SUBSTR(E.SPARE_NO,1,3) || '-' || SUBSTR(E.SPARE_NO,4,4) || '-' || SUBSTR(E.SPARE_NO,7) AS SPARE_NO, E.EMAIL, C3.CODE_NAME AS EDCTN,
+			   E.ATHRTY_NO, D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME
+		FROM EMPLY E INNER JOIN PRSNL_APNTMNTS PA
+		                     ON E.EMPLY_NO = PA.EMPLY_NO
+		                    AND PA.END_DAY IS NOT NULL
+		             LEFT OUTER JOIN DPRTMNT D
+		                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		             LEFT OUTER JOIN PSTN P
+		                     ON PA.PSTN_NO = P.PSTN_NO
+                    INNER JOIN CMN_CODE C
+                            ON E.GNDER = C.MINOR_CODE
+                            AND C.MAJOR_CODE = 7
+                    INNER JOIN CMN_CODE C2
+                            ON E.SOLAR_LUNAR = C2.MINOR_CODE
+                            AND C2.MAJOR_CODE = 15
+                    INNER JOIN CMN_CODE C3
+                            ON E.EDCTN = C3.MINOR_CODE
+                            AND C3.MAJOR_CODE = 16
+            WHERE ATHRTY_NO  != 1
+				
+			<if test="searchTxt2 != null and searchTxt2 != ''">
+				AND (TO_CHAR(E.EMPLY_NO, '0000000009') LIKE '%' || #{searchTxt2} || '%'
+				OR E.EMPLY_NAME LIKE '%' || #{searchTxt2} || '%'
+				OR C.CODE_NAME LIKE '%' || #{searchTxt2} || '%'
+				OR E.EMAIL LIKE '%' || #{searchTxt2} || '%'
+				OR D.DPRTMNT_NAME LIKE '%' || #{searchTxt2} || '%'
+				OR PSTN_NAME LIKE '%' || #{searchTxt2} || '%') 
+			</if>)	
+			)
+	</select>
+
+	<!-- 인사서류 결재 테이블 올리려고 기안번호 가져오기 -->
+	<select id="getDraftNo" parameterType="hashmap" resultType="int">
+		SELECT DRAFT_NO_SEQ.NEXTVAL
+		FROM DUAL
+	</select>
+	
+	<!-- 인사서류 기안테이블 인서트 -->
+	<insert id="draftWrite" parameterType="hashmap">
+		INSERT INTO DRAFT(DRAFT_NO, EMPLY_NO, DRAFT_TITLE, DRAFT_CNTNT)
+		VALUES(#{draftNo},#{sEmplyNo},#{draftDocKind}||'결재 신청',#{draftHtml})
+	</insert>
+
+	<!-- 인사서류 결재테이블 인서트 -->
+	<insert id="signWrite" parameterType="hashmap">
+		INSERT INTO SIGN(SIGN_NO, EMPLY_NO, EXTRNL_LNKG_DVSN_NO, DRAFT_NO, EXTRNL_LNKG_NO)
+		VALUES (SIGN_NO_SEQ.NEXTVAL,6,1,1,#{draftNo},#{dNo})
+	</insert>
+	
+
+	<!-- 인사서류 수정시 결재번호 알아야돼서 결재번호+인사서류 번호 잇는 sign에서 해당 인사서류의 결재번호 가져오기 -->
+	<select id="getdraftNoForUpdate" parameterType="hashmap" resultType="int">
+		SELECT D.DRAFT_NO
+		FROM DRAFT D INNER JOIN SIGN S
+                             ON D.DRAFT_NO = S.DRAFT_NO
+		WHERE EXTRNL_LNKG_DVSN_NO = 1
+		AND EXTRNL_LNKG_NO = #{checkDocNo}        
+	</select>
+		
+	<!-- 인사카드 작성 -->
+	<insert id="empWrite" parameterType="hashmap">
+		INSERT INTO EMPLY(EMPLY_NO, ATHRTY_NO, EMPLY_NAME, PHTGR, GNDER, BIRTH, SOLAR_LUNAR, ADRS, DTL_ADRS, PSTCD, CLPHN_NO, SPARE_NO, EMAIL, PSRD,EDCTN)
+		VALUES (EMPLY_SEQ.NEXTVAL, 9, #{eName}, #{picName}, #{gender}, SUBSTR(#{eBirth},3,2) || '/' || SUBSTR(#{eBirth},5,2) || '/' || SUBSTR(#{eBirth},7), #{solun}, #{adrs}, #{dtlAdrs}, #{pstcd}, #{clphnNo}, #{spareNo}, #{email}, #{pswrd}, #{edctn})
+	</insert>
+	
+	<!-- 나의정보 로그인 -->
+	<select id="myinfologinCheck" parameterType="hashmap" resultType="hashmap">
+		SELECT E.EMPLY_NO, E.PHTGR, E.EMPLY_NAME, 
+			   E.ATHRTY_NO, D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME
+		FROM EMPLY E INNER JOIN PRSNL_APNTMNTS PA
+		                     ON E.EMPLY_NO = PA.EMPLY_NO
+		                    AND PA.END_DAY IS NULL
+		             INNER JOIN DPRTMNT D
+		                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		             INNER JOIN PSTN P
+		                     ON PA.PSTN_NO = P.PSTN_NO
+		WHERE E.EMPLY_NO = #{checkEmplyNo}
+		AND E.PSRD = #{psrd}
+	</select>
+	
+	<!-- 인사서류 상태 가져오기  -->
+	<select id="getpdCondition" parameterType="hashmap" resultType="hashmap">
+		SELECT SIGN_DATE, CAUSE
+		FROM DRAFT D INNER JOIN SIGN S
+		                     ON D.DRAFT_NO = S.DRAFT_NO
+		WHERE EXTRNL_LNKG_NO = #{checkDocNo}
+		AND S.EXTRNL_LNKG_DVSN_NO = 1
+	</select>
+
+	<!-- bsc 성과지표 테이블 개수 조회  -->
+	<select id="getbsclistcnt" parameterType="hashmap" resultType="int">
+		SELECT COUNT(*) AS BSCCNT
+		FROM BSC B INNER JOIN STNDRD_BSC SB
+                           ON B.STNDRD_BSC_NO = SB.STNDRD_BSC_NO
+                   INNER JOIN KPI K
+                           ON B.KPI_NO = K.KPI_NO
+                   INNER JOIN CSF C
+                           ON K.CSF_NO = C.CSF_NO
+                   INNER JOIN INDCTOR I
+                           ON K.INDCTOR_NO = I.INDCTOR_NO
+		WHERE 1=1
+		AND C.DLT_YN IN 1
+		AND B.STNDRD_BSC_NO = #{selectYear}
+		<if test="dprtmntNo != 0">
+		AND B.DPRTMNT_NO = #{dprtmntNo}
+		</if>
+	</select>
+	
+	<!-- bsc 성과지표 테이블 조회  -->
+	<select id="getbsclist" parameterType="hashmap" resultType="hashmap">
+		SELECT C.CSF_NO, C.CSF_NAME, K.KPI_NO, K.KPI_NAME, B.GOAL_VALUE,I.MSR, B.PRFRMNC_VALUE, I.MSR, ROUND(B.PRFRMNC_VALUE / B.GOAL_VALUE * 100) || '%' AS ACHVMNT_RATE
+		FROM BSC B INNER JOIN STNDRD_BSC SB
+                           ON B.STNDRD_BSC_NO = SB.STNDRD_BSC_NO
+                   INNER JOIN KPI K
+                           ON B.KPI_NO = K.KPI_NO
+                   INNER JOIN CSF C
+                           ON K.CSF_NO = C.CSF_NO
+                   INNER JOIN INDCTOR I
+                           ON K.INDCTOR_NO = I.INDCTOR_NO
+		WHERE 1=1
+		AND C.DLT_YN IN 1
+		AND B.STNDRD_BSC_NO = #{selectYear}
+		<if test="dprtmntNo != 0">
+		AND B.DPRTMNT_NO = #{dprtmntNo}
+		</if>
+		ORDER BY CSF_NO
+	</select>
+
+	<!-- bsc 성과지표 올해 기준연도 있는지 확인  -->
+	<select id="getStndrdBscNo" parameterType="hashmap" resultType="int">
+		SELECT STNDRD_BSC_NO
+		FROM (
+            SELECT STNDRD_BSC_NO
+            FROM STNDRD_BSC
+            WHERE STNDRD_YEAR = TO_CHAR(SYSDATE, 'YYYY')
+            
+            UNION ALL
+            
+            SELECT 0 AS STNDRD_BSC_NO
+            FROM DUAL)
+		WHERE STNDRD_BSC_NO != 0 OR ROWNUM = 1
+	</select>
+
+	<!-- bsc 성과지표  연도 가져오기  -->
+	<select id="getBscStndYear" parameterType="hashmap" resultType="hashmap">
+		SELECT STNDRD_BSC_NO,STNDRD_YEAR
+		FROM STNDRD_BSC
+		ORDER BY STNDRD_BSC_NO DESC
+	</select>
+
+	<!-- bsc 성과지표  부서 가져오기  -->
+	<select id="getBscGbnDprtmnt" parameterType="hashmap" resultType="hashmap">
+		SELECT DPRTMNT_NO,DPRTMNT_NAME
+		FROM DPRTMNT
+		WHERE YN = 1
+	</select>
+
+	<!-- bsc 성과지표 올해 기준연도 입력  -->
+	<insert id="writeStndrdBscNo" parameterType="hashmap">
+		INSERT INTO STNDRD_BSC (STNDRD_BSC_NO, STNDRD_YEAR)
+		VALUES (STNDRD_BSC_SEQ.NEXTVAL,TO_CHAR(SYSDATE, 'YYYY'))
+	</insert>
+	
+	<!-- 인사서류 번호 미리 만들어서 가져오기 -->
+	<select id="getPdNextvalNo" parameterType="hashmap" resultType="hashmap">
+		SELECT PRSNL_DCMNT_SEQ.NEXTVAL AS NEXT_PD_NO, TO_CHAR(PRSNL_DCMNT_SEQ.NEXTVAL, '0000000009') AS NEXT_PD_NO_TC
+        FROM DUAL
+	</select>
+	
+	<!-- 인사서류 작성 -->
+	<insert id="pdWrite" parameterType="hashmap">
+		INSERT INTO PRSNL_DCMNT (PRSNL_DCMNT_NO, PRSNL_DCMNT_KIND_NO, EMPLY_NO, WRT_DATE, DCMNT_USE,  WRTR_NO)
+		VALUES (#{checkDocNo}, #{docKind}, #{selectEmply}, SYSDATE, #{dcmntUse}, #{sEmplyNo})
+	</insert>
+	
+	<!-- 인사서류 작성하면서 인사카드 주소 수정 -->
+	<update id="forPdoWriteUpdateEmplyAdrs" parameterType="hashmap">
+		UPDATE EMPLY SET ADRS = #{adrs}, DTL_ADRS = #{dtlAdrs}, PSTCD = #{pstcd}
+		WHERE EMPLY_NO = #{selectEmply} 
+	</update>
+
+	<!-- 인사서류 수정하면서 결재테이블도 수정 -->
+	<update id="draftUpdate" parameterType="hashmap">
+		UPDATE DRAFT SET DRAFT_CNTNT = #{draftHtml}, DRAFT_DATE = SYSDATE
+		WHERE DRAFT_NO = #{draftNoFS}
+	</update>
+
+	<!-- 인사서류 작성하면서 인사카드 주소 수정해서 바뀐 주소 가져오기 -->
+	<select id="onlyAdrs" parameterType="hashmap" resultType="hashmap">
+		SELECT ADRS,DTL_ADRS,PSTCD
+		FROM EMPLY
+		WHERE EMPLY_NO = #{selectEmply} 
+	</select>
+	
+	<!-- 인사카드 이메일 중복확인 -->
+	<select id="getEmpEmailCheck" parameterType="hashmap" resultType="Integer">
+		SELECT COUNT(*) AS CNT
+		FROM EMPLY
+		WHERE EMAIL = #{email}
+	</select>
+	
+	<!-- 인사카드 수정 시 이메일 중복확인 -->
+	<select id="getEmpEmailCheck2" parameterType="hashmap" resultType="Integer">
+		SELECT COUNT(*) AS CNT
+		FROM EMPLY
+		WHERE EMPLY_NO != #{checkEmplyNo} 		
+		AND EMAIL = #{email}
+	</select>
+	
+	<!-- 인사카드 개별조회 -->
+	<select id="getEmply" parameterType="hashmap" resultType="hashmap">
+		SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,CLPHN_NO,EMAIL,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME,
+				TO_CHAR(BIRTH,'YYYY-MM-DD') AS BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,EDCTN,SPARE_NO, TO_CHAR(START_DAY, 'YYYY-MM-DD') AS START_DAY,
+				TO_CHAR(END_DAY, 'YYYY-MM-DD') AS END_DAY,TO_CHAR(SYSDATE, 'YYYY-MM-DD') AS SYS,
+				TO_CHAR(SYSDATE,'YYYY') AS SYSDATE_Y, TO_CHAR(SYSDATE,'MM') AS SYSDATE_M, TO_CHAR(SYSDATE,'DD') AS SYSDATE_D,
+		        TO_CHAR(START_DAY,'YYYY') AS START_DAY_Y, TO_CHAR(START_DAY,'MM') AS START_DAY_M, TO_CHAR(START_DAY,'DD') AS START_DAY_D,
+		        TO_CHAR(END_DAY,'YYYY') AS END_DAY_Y, TO_CHAR(END_DAY,'MM') AS END_DAY_M, TO_CHAR(END_DAY,'DD') AS END_DAY_D
+		FROM 
+		(SELECT  ROW_NUMBER() OVER(ORDER BY E.EMPLY_NO DESC) AS B_NO, E.EMPLY_NO AS E_NO, TO_CHAR(E.EMPLY_NO, '0000000009') AS EMPLY_NO, E.PHTGR, E.EMPLY_NAME, 
+				C.CODE_NAME AS GNDER, SUBSTR(CLPHN_NO,1,3) || '-' || SUBSTR(CLPHN_NO,4,4) || '-' || SUBSTR(CLPHN_NO,8) AS CLPHN_NO,EMAIL,E.ATHRTY_NO, 
+				D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME, E.BIRTH,C2.CODE_NAME AS SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,C3.CODE_NAME AS EDCTN, 
+				SUBSTR(SPARE_NO,1,3) || '-' || SUBSTR(SPARE_NO,4,4) || '-' || SUBSTR(SPARE_NO,8) AS SPARE_NO,PA.START_DAY, PA.END_DAY
+		FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS PA
+				                     ON E.EMPLY_NO = PA.EMPLY_NO
+				                    AND PA.END_DAY IS NULL
+				             LEFT OUTER JOIN DPRTMNT D
+				                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+				             LEFT OUTER JOIN PSTN P
+				                     ON PA.PSTN_NO = P.PSTN_NO
+				             LEFT OUTER JOIN CMN_CODE C
+                                     ON E.GNDER = C.MINOR_CODE
+                                    AND C.MAJOR_CODE = 7
+                            LEFT OUTER JOIN CMN_CODE C2 
+                                    ON E.SOLAR_LUNAR = C2.MINOR_CODE
+                                    AND C2.MAJOR_CODE = 15
+                            LEFT OUTER JOIN CMN_CODE C3
+                                    ON E.EDCTN = C3.MINOR_CODE
+                                    AND C3.MAJOR_CODE = 16
+				WHERE ATHRTY_NO != 1)
+		WHERE E_NO = #{checkEmplyNo}
+	</select>
+
+	<!-- 인사서류 개별조회 위해 퇴사자까지 포함한 쿼리 -->
+	<select id="getAllEmply" parameterType="hashmap" resultType="hashmap">
+		SELECT B_NO, E_NO, EMPLY_NO,PHTGR,EMPLY_NAME,GNDER,CLPHN_NO,EMAIL,ATHRTY_NO,DPRTMNT_NO,DPRTMNT_NAME,PSTN_NO,PSTN_NAME,
+				TO_CHAR(BIRTH,'YYYY-MM-DD') AS BIRTH,SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,EDCTN,SPARE_NO, TO_CHAR(START_DAY, 'YYYY-MM-DD') AS START_DAY,
+				TO_CHAR(END_DAY, 'YYYY-MM-DD') AS END_DAY,TO_CHAR(SYSDATE, 'YYYY-MM-DD') AS SYS,
+				TO_CHAR(SYSDATE,'YYYY') AS SYSDATE_Y, TO_CHAR(SYSDATE,'MM') AS SYSDATE_M, TO_CHAR(SYSDATE,'DD') AS SYSDATE_D,
+		        TO_CHAR(START_DAY,'YYYY') AS START_DAY_Y, TO_CHAR(START_DAY,'MM') AS START_DAY_M, TO_CHAR(START_DAY,'DD') AS START_DAY_D,
+		        TO_CHAR(END_DAY,'YYYY') AS END_DAY_Y, TO_CHAR(END_DAY,'MM') AS END_DAY_M, TO_CHAR(END_DAY,'DD') AS END_DAY_D
+		FROM 
+		(SELECT  ROW_NUMBER() OVER(ORDER BY E.EMPLY_NO DESC) AS B_NO, E.EMPLY_NO AS E_NO, TO_CHAR(E.EMPLY_NO, '0000000009') AS EMPLY_NO, E.PHTGR, E.EMPLY_NAME, 
+				C.CODE_NAME AS GNDER, SUBSTR(CLPHN_NO,1,3) || '-' || SUBSTR(CLPHN_NO,4,4) || '-' || SUBSTR(CLPHN_NO,8) AS CLPHN_NO,EMAIL,E.ATHRTY_NO, 
+				D.DPRTMNT_NO, D.DPRTMNT_NAME, P.PSTN_NO, P.PSTN_NAME, E.BIRTH,C2.CODE_NAME AS SOLAR_LUNAR,ADRS,DTL_ADRS,PSTCD,C3.CODE_NAME AS EDCTN, 
+				SUBSTR(SPARE_NO,1,3) || '-' || SUBSTR(SPARE_NO,4,4) || '-' || SUBSTR(SPARE_NO,8) AS SPARE_NO,PA.START_DAY, PA.END_DAY
+		FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS PA
+				                     ON E.EMPLY_NO = PA.EMPLY_NO
+				             LEFT OUTER JOIN DPRTMNT D
+				                     ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+				             LEFT OUTER JOIN PSTN P
+				                     ON PA.PSTN_NO = P.PSTN_NO
+				             LEFT OUTER JOIN CMN_CODE C
+                                     ON E.GNDER = C.MINOR_CODE
+                                    AND C.MAJOR_CODE = 7
+                            LEFT OUTER JOIN CMN_CODE C2 
+                                    ON E.SOLAR_LUNAR = C2.MINOR_CODE
+                                    AND C2.MAJOR_CODE = 15
+                            LEFT OUTER JOIN CMN_CODE C3
+                                    ON E.EDCTN = C3.MINOR_CODE
+                                    AND C3.MAJOR_CODE = 16
+				WHERE ATHRTY_NO != 1)
+		WHERE E_NO = #{checkEmplyNo}
+	</select>
+	
+	<!-- 인사카드 수정 위한 데이터 받아올 테이블 -->
+	<select id="getEmply2" parameterType="hashmap" resultType="hashmap">
+		SELECT EMPLY_NO AS E_NO, TO_CHAR(EMPLY_NO, '0000000009') AS EMPLY_NO, EMPLY_NAME, PHTGR, GNDER, TO_CHAR(BIRTH, 'YYYYDDMM') AS BIRTH, SOLAR_LUNAR, ADRS, DTL_ADRS, PSTCD, CLPHN_NO, SPARE_NO, EMAIL, EDCTN
+		FROM EMPLY
+		WHERE EMPLY_NO = #{checkEmplyNo}
+	</select>
+	
+	<!-- 인사카드 수정 -->
+	<update id="empUpdate" parameterType="hashmap">
+		UPDATE EMPLY SET EMPLY_NAME = #{eName}, PHTGR = #{picName}, GNDER = #{gender}, BIRTH = SUBSTR(#{eBirth},3,2) || '/' || SUBSTR(#{eBirth},5,2) || '/' || SUBSTR(#{eBirth},7), SOLAR_LUNAR= #{solun}, 
+                ADRS = #{adrs}, DTL_ADRS = #{dtlAdrs}, PSTCD = #{pstcd}, CLPHN_NO = #{clphnNo}, SPARE_NO = #{spareNo}, EMAIL = #{email}, EDCTN = #{edctn}
+		WHERE EMPLY_NO = #{checkEmplyNo} 
+	</update>
+
+	<!-- 인사서류 수정 -->
+	<update id="pdUpdate" parameterType="hashmap">
+		UPDATE PRSNL_DCMNT SET WRT_DATE = SYSDATE, DCMNT_USE = #{dcmntUse}
+		WHERE PRSNL_DCMNT_NO = #{checkDocNo}
+	</update>
+
+	<!-- 비밀번호 수정 -->
+	<update id="psrdchange" parameterType="hashmap">
+		UPDATE EMPLY SET PSRD = #{psrd}
+		WHERE EMPLY_NO = #{sEmplyNo} 
+	</update>
+
+	<insert id="adtWrite" parameterType="hashmap">
+		INSERT INTO ADTNAL_DUTY(ADTNAL_DUTY_NO, EMPLY_NO, START_DAY_TIME,
+		END_DAY_TIME, ADDITIONAL_DUTY_TYPE, PLACE, CNTNT)
+		VALUES(ADTNAL_DUTY_NO_SEQ.NEXTVAL, #{sEmplyNo},	TO_DATE(#{stdate}||#{sttime}, 'YYYY-MM-DD HH24:MI'),
+		TO_DATE(#{eddate}||#{edtime}, 'YYYY-MM-DD HH24:MI'),#{adttype},
+		#{adtplace}, #{adtCon})
+	</insert>
+
+	<select id="adtList" parameterType="hashmap" resultType="hashmap">
+		SELECT ADTNAL_DUTY_NO AS ID, EMPLY_NAME AS TITLE, START_DAY_TIME AS
+		"START", END_DAY_TIME AS "END"
+		FROM ADTNAL_DUTY A INNER JOIN EMPLY E
+		ON A.EMPLY_NO = E.EMPLY_NO
+		<if test="sEmplyNo2 != null and sEmplyNo2 != ''">
+			AND E.EMPLY_NO = #{sEmplyNo2}
+		</if>
+		INNER JOIN PRSNL_APNTMNTS PA
+		ON E.EMPLY_NO = PA.EMPLY_NO
+		AND PA.END_DAY IS NULL
+		INNER JOIN DPRTMNT D
+		ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		<choose>
+			<when test="dprtSelect == 1">
+				AND D.DPRTMNT_NO = 3
+			</when>
+			<when test="dprtSelect == 2">
+				AND D.DPRTMNT_NO = 4
+			</when>
+			<when test="dprtSelect == 3">
+				AND D.DPRTMNT_NO = 5
+			</when>
+		</choose>
+		WHERE A.DLT_YN = 1
+	</select>
+	<select id="getChartAjax" parameterType="hashmap" resultType="hashmap">
+		SELECT MON, DATA, DATA2, DATA3
+		FROM (SELECT TO_CHAR(START_DAY_TIME, 'YYYY/MM') AS MON,
+		SUM(ROUND(((END_DAY_TIME-START_DAY_TIME)*24*60),3)) AS DATA,
+		SUM(CASE WHEN ADDITIONAL_DUTY_TYPE = 0
+		THEN ROUND(((END_DAY_TIME-START_DAY_TIME)*24*60),3)
+		ELSE 0
+		END) AS DATA2,
+		SUM(CASE WHEN ADDITIONAL_DUTY_TYPE = 1
+		THEN ROUND(((END_DAY_TIME-START_DAY_TIME)*24*60),3)
+		ELSE 0
+		END) AS DATA3
+		FROM ADTNAL_DUTY
+		WHERE TO_CHAR(START_DAY_TIME, 'YYYY-MM') BETWEEN #{stmonth} AND #{endmonth}
+		AND TO_CHAR(END_DAY_TIME, 'YYYY-MM') BETWEEN #{stmonth} AND #{endmonth}
+		AND DLT_YN = 1
+		GROUP BY TO_CHAR(START_DAY_TIME, 'YYYY/MM'))
+		ORDER BY MON
+	</select>
+	<select id="getPUList" parameterType="hashmap" resultType="hashmap">
+		SELECT ADTNAL_DUTY_NO AS ID, EMPLY_NO, EMPLY_NAME AS TITLE, DPRTMNT_NAME,
+		PSTN_NAME, ADDITIONAL_DUTY_TYPE AS TYPE,
+		TO_CHAR(START_DAY_TIME, 'YYYY-MM-DD') AS "START", TO_CHAR(START_DAY_TIME, 'HH:MI') AS
+		"STARTTIME", TO_CHAR(END_DAY_TIME, 'YYYY-MM-DD') AS "END",
+		TO_CHAR(END_DAY_TIME, 'HH:MI') AS "ENDTIME", PLACE, CNTNT
+		FROM ADTNAL_DUTY A INNER JOIN EMPLY E
+		ON A.EMPLY_NO = E.EMPLY_NO
+		INNER JOIN PRSNL_APNTMNTS PA
+		ON E.EMPLY_NO = PA.EMPLY_NO
+		AND PA.END_DAY IS NULL
+		INNER JOIN PSTN PSN
+		ON PA.PSTN_NO = PSN.PSTN_NO
+		INNER JOIN DPRTMNT D
+		ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		WHERE ADTNAL_DUTY_NO = #{aDutyNo}
+	</select>
+
+	<update id="adtUpdate" parameterType="hashmap">
+		UPDATE ADTNAL_DUTY SET ADDITIONAL_DUTY_TYPE = #{adttype}, START_DAY_TIME =
+		TO_DATE(#{stdate} || #{sttime}, 'YYYY-MM-DD HH24:MI'), END_DAY_TIME =
+		TO_DATE(#{eddate} || #{edtime}, 'YYYY-MM-DD HH24:MI'),
+		PLACE = #{adtplace}, CNTNT = #{adtCon}
+		WHERE ADTNAL_DUTY_NO = #{aDutyNo}
+	</update>
+
+	<update id="adtDelete" parameterType="hashmap">
+		UPDATE ADTNAL_DUTY SET DLT_YN = 0
+		WHERE ADTNAL_DUTY_NO = #{aDutyNo}
+	</update>
+
+	<select id="getchart" resultType="hashmap">
+		SELECT 0 AS ID, '#' AS PARENT, 'FOOD CORP' AS TEXT, 'corp' AS TYPE
+		FROM DUAL
+		UNION ALL
+		SELECT ID, PARENT, TEXT, TYPE
+		FROM (
+		SELECT DPRTMNT_NO AS ID, DECODE(HGHER_DPRTMNT_NO, NULL, '0', HGHER_DPRTMNT_NO) AS PARENT, DPRTMNT_NAME AS TEXT, 'group' AS TYPE
+		FROM DPRTMNT
+		WHERE YN = 1
+		AND DPRTMNT_NO NOT IN (1)
+		ORDER BY NVL(HGHER_DPRTMNT_NO, DPRTMNT_NO)  ASC, DPRTMNT_LEVEL ASC, DPRTMNT_NO ASC)
+	</select>
+	
+	<insert id="groupwrite" parameterType="hashmap">
+		INSERT INTO DPRTMNT (DPRTMNT_NO, HGHER_DPRTMNT_NO, DPRTMNT_LEVEL, DPRTMNT_NAME)
+		VALUES(DPRTMNT_SEQ.NEXTVAL, 
+				#{topDptNo}, 
+				(SELECT NVL((SELECT DPRTMNT_LEVEL
+				            FROM DPRTMNT
+				            WHERE DPRTMNT_NO = #{topDptNo}) , 0) + 1
+				FROM DUAL),
+				#{dprtmnt_name})
+	</insert>
+	
+	<!-- 삭제 -->
+	<select id="getgroup" parameterType="hashmap" resultType="Integer">
+		SELECT CASE WHEN CNT > TCNT
+                    THEN CNT
+                    ELSE TCNT
+		       END AS CNT
+		FROM (SELECT  DPRTMNT_NO, COUNT(EMPLY_NO) AS CNT, NVL(TCNT, 0) AS TCNT
+	          FROM (SELECT D.DPRTMNT_NO, P.EMPLY_NO, T.TCNT
+                    FROM DPRTMNT D LEFT OUTER JOIN PRSNL_APNTMNTS P
+	                                            ON D.DPRTMNT_NO = P.DPRTMNT_NO
+	                                           AND P.END_DAY IS NULL
+	                           	   LEFT OUTER JOIN (SELECT HGHER_DPRTMNT_NO, COUNT(*) AS TCNT
+	                                                FROM DPRTMNT
+                                                    GROUP BY HGHER_DPRTMNT_NO) T
+                                                ON D.DPRTMNT_NO = T.HGHER_DPRTMNT_NO
+                    WHERE D.DPRTMNT_NO = #{DptNo}) 
+	         GROUP BY DPRTMNT_NO,  NVL(TCNT, 0))
+	</select>
+	
+	<update id="groupupdateYn" parameterType="hashmap">
+		UPDATE DPRTMNT SET YN = 0
+		WHERE DPRTMNT_NO =#{DptNo}
+	</update>
+	
+	<!-- 사원 조회 -->
+	<select id="getempCnt"  parameterType="hashmap" resultType="Integer" >
+		SELECT  COUNT(*) AS CNT
+        FROM EMPLY E INNER JOIN PRSNL_APNTMNTS P
+                            ON E.EMPLY_NO = P.EMPLY_NO
+                            INNER JOIN DPRTMNT D
+                            ON P.DPRTMNT_NO = D.DPRTMNT_NO
+                            INNER JOIN PSTN PS
+                            ON P.PSTN_NO = PS.PSTN_NO
+                            AND P.DPRTMNT_NO = #{DptNo}
+	</select>
+	
+	<select id="getempList" parameterType="hashmap" resultType="hashmap">
+		SELECT B.NO, B.NAME, B.JNAME, B.PHONE, B.BNUM
+		FROM (SELECT E.EMPLY_NO AS NO, E.EMPLY_NAME AS NAME, E.CLPHN_NO AS PHONE, PS.PSTN_NAME AS JNAME, P.DPRTMNT_NO AS BNUM,
+                    ROW_NUMBER()OVER(ORDER BY E.EMPLY_NO) AS ROWN
+	          FROM EMPLY E INNER JOIN PRSNL_APNTMNTS P
+                            ON E.EMPLY_NO = P.EMPLY_NO
+                            INNER JOIN DPRTMNT D
+                            ON P.DPRTMNT_NO = D.DPRTMNT_NO
+                            INNER JOIN PSTN PS
+                            ON P.PSTN_NO = PS.PSTN_NO
+                            AND P.DPRTMNT_NO = #{DptNo}) B
+		WHERE B.ROWN BETWEEN #{startCnt} AND #{endCnt}
+	</select>
+	
+	<select id="getdprtCnt" parameterType="hashmap" resultType="Integer">
+		SELECT COUNT(*) AS CNT
+		FROM EMPLY E INNER JOIN PRSNL_APNTMNTS PA
+		        ON E.EMPLY_NO = PA.EMPLY_NO
+		        AND END_DAY IS NOT NULL
+		        LEFT OUTER JOIN PSTN P
+		        ON PA.PSTN_NO = P.PSTN_NO
+		        LEFT OUTER JOIN DPRTMNT D
+		        ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		WHERE START_DAY IS NOT NULL
+		<if test="srchTxt !=null and srchTxt != ''">
+		
+			<choose>
+				<when test="srch == 0">AND 
+					(E.EMPLY_NO LIKE'%'||#{srchTxt}||'%'
+					OR E.EMPLY_NAME LIKE'%'||#{srchTxt}||'%'
+					OR D.DPRTMNT_NAME LIKE'%'||#{srchTxt}||'%')
+				</when>
+				<when test="srch == 1">
+					AND E.EMPLY_NO LIKE'%'||#{srchTxt}||'%'
+				</when>
+				<when test="srch == 2">
+					AND E.EMPLY_NAME LIKE'%'||#{srchTxt}||'%'
+				</when>
+				<when test="srch == 3">
+					AND D.DPRTMNT_NAME LIKE'%'||#{srchTxt}||'%'
+				</when>
+			</choose>
+			
+		</if>
+		
+	</select>
+	
+ 	 <!-- <select id="getdprtList" parameterType="hashmap" resultType="hashmap">
+		SELECT B.EMPNO, B.EMPNAME,  B.JNAME, B.DNAME, B.STARTDAY
+		FROM (SELECT E.EMPLY_NO AS EMPNO, E.EMPLY_NAME AS EMPNAME, TO_CHAR(PA.START_DAY, 'YY/MM/DD') AS STARTDAY, P.PSTN_NAME AS JNAME, D.DPRTMNT_NAME AS DNAME,
+                	ROW_NUMBER() OVER (ORDER BY PRSNL_APNTMNTS_NO DESC) AS ROWN
+        		FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS PA
+	                ON E.EMPLY_NO = PA.EMPLY_NO
+	                AND END_DAY IS NOT NULL
+	                LEFT OUTER JOIN PSTN P
+	                ON PA.PSTN_NO = P.PSTN_NO
+	                LEFT OUTER JOIN DPRTMNT D
+	                ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+        WHERE START_DAY IS NOT NULL
+		<if test="srchTxt !=null and srchTxt != ''">
+			<choose>  
+				<when test="srch == 0">AND 
+				(EMPNO LIKE'%'||#{srchTxt}||'%'
+				OR EMPNAME LIKE'%'||#{srchTxt}||'%'
+				OR DNAME LIKE'%'||#{srchTxt}||'%')
+				</when>
+				<when test="srch == 1">
+				AND EMPNO = #{srchTxt}
+				</when>
+				<when test="srch == 2">
+				AND EMPNAME LIKE'%'||#{srchTxt}||'%'
+				</when>
+				<when test="srch == 3">
+				AND DNAME LIKE'%'||#{srchTxt}||'%'
+				</when>
+			</choose>
+		
+		</if>	        			
+		)B WHERE B.ROWN BETWEEN #{startCnt} AND #{endCnt}
+		        		
+	</select>   -->
+	
+	<select id="getdprtList" parameterType="hashmap" resultType="hashmap">	
+		SELECT B.EMPNO, B.EMPNAME,  B.JNAME, B.DNAME, B.STARTDAY
+		FROM (SELECT E.EMPLY_NO AS EMPNO, E.EMPLY_NAME AS EMPNAME, TO_CHAR(PA.START_DAY, 'YY/MM/DD') AS STARTDAY, P.PSTN_NAME AS JNAME, D.DPRTMNT_NAME AS DNAME,
+		                	ROW_NUMBER() OVER (ORDER BY PRSNL_APNTMNTS_NO DESC) AS ROWN
+		        		FROM EMPLY E INNER JOIN PRSNL_APNTMNTS PA
+			                ON E.EMPLY_NO = PA.EMPLY_NO
+			                AND END_DAY IS NOT NULL
+		                    AND START_DAY IS NOT NULL
+			                LEFT OUTER JOIN PSTN P
+			                ON PA.PSTN_NO = P.PSTN_NO
+			                LEFT OUTER JOIN DPRTMNT D
+			                ON PA.DPRTMNT_NO = D.DPRTMNT_NO)B
+		WHERE B.ROWN BETWEEN 1 AND 50
+		<if test="srchTxt !=null and srchTxt != ''">
+			<choose>  
+			<when test="srch == 0">
+			AND EMPNO LIKE '%'||#{srchTxt}||'%'
+			OR EMPNAME LIKE '%'||#{srchTxt}||'%'
+			OR DNAME LIKE '%'||#{srchTxt}||'%'
+			</when>
+			<when test="srch == 1">
+			AND EMPNO LIKE'%'||#{srchTxt}||'%'
+			</when>
+			<when test="srch == 2">
+			AND EMPNAME LIKE'%'||#{srchTxt}||'%'
+			</when>
+			<when test="srch == 3">
+			AND DNAME LIKE'%'||#{srchTxt}||'%'
+			</when>
+		</choose>
+		</if>	        	
+	</select>
+		
+	<select id="empsrchList" parameterType="hashmap" resultType="hashmap">
+		SELECT A.EMPNO, A.EMPNAME,  NVL(A.JNAME,' ')AS JNAME, NVL(D.DPRTMNT_NAME,' ') AS DNAME
+		FROM (SELECT A.EMPNO, A.EMPNAME,  P.PSTN_NAME AS JNAME, A.DNO, A.STARTDAY
+              FROM (SELECT E.EMPLY_NO AS EMPNO, E.EMPLY_NAME AS EMPNAME, P.PSTN_NO AS JNO, P.DPRTMNT_NO AS DNO, TO_CHAR(P.START_DAY, 'YY/MM/DD' )AS STARTDAY
+                    FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS P
+                                    ON E.EMPLY_NO = P.EMPLY_NO
+                    WHERE 
+                    E.EMPLY_NO !=1) A LEFT OUTER JOIN PSTN P
+                                         ON A.JNO =P.PSTN_NO) 
+                                         A LEFT OUTER JOIN DPRTMNT D
+                                            ON A.DNO = D.DPRTMNT_NO
+       ORDER BY A.EMPNO
+	</select>
+	
+	<select id="prsnempList" parameterType="hashmap" resultType="hashmap">
+         SELECT A.EMPNO, A.EMPNAME,  NVL(A.JNAME,' ')AS JNAME, NVL(D.DPRTMNT_NAME,' ') AS DNAME, A.DNO, JNO
+		FROM (SELECT A.EMPNO, A.EMPNAME,  P.PSTN_NAME AS JNAME, A.DNO, A.STARTDAY, A.JNO
+              FROM (SELECT E.EMPLY_NO AS EMPNO, E.EMPLY_NAME AS EMPNAME, P.PSTN_NO AS JNO, P.DPRTMNT_NO AS DNO, TO_CHAR(P.START_DAY, 'YY/MM/DD' )AS STARTDAY
+                    FROM EMPLY E LEFT OUTER JOIN PRSNL_APNTMNTS P
+                                    ON E.EMPLY_NO = P.EMPLY_NO
+                    WHERE END_DAY IS NULL
+                    AND E.EMPLY_NO !=1
+                    AND E.EMPLY_NO =#{empNo} ) A LEFT OUTER JOIN PSTN P
+                                         ON A.JNO =P.PSTN_NO) 
+                                         A LEFT OUTER JOIN DPRTMNT D
+                                            ON A.DNO = D.DPRTMNT_NO
+	</select>
+	
+	<select id="pstnsrchList" parameterType="hashmap" resultType="hashmap">
+		SELECT DPRTMNT_NAME
+		FROM DPRTMNT
+		WHERE YN = 1
+		AND DPRTMNT_NO != 1
+	</select>
+	<select id="empjnameList" parameterType="hashmap" resultType="hashmap">
+		SELECT PSTN_NAME AS JNAME, PSTN_NO AS JNO
+		FROM PSTN
+		WHERE DLT_TYPE = 1
+		AND PSTN_NO NOT IN(1, 2) 
+	</select>
+	
+	<select id="empbnameList" parameterType="hashmap" resultType="hashmap">
+		SELECT DPRTMNT_NO AS DNO, DPRTMNT_NAME AS DNAME
+		FROM DPRTMNT
+		WHERE YN = 1
+		AND DPRTMNT_NO != 1 
+	</select>
+	
+	<select id="vctnkindList" parameterType="hashmap" resultType="hashmap">
+		SELECT KIND_NAME
+		FROM VCTN_KIND
+		WHERE DLT_YN = 1
+		AND VCTN_KIND_NO !=1
+	</select>
+	
+	<select id="getListVctn" parameterType="hashmap" resultType="hashmap">
+			SELECT E.EMPLY_NO, E.EMPLY_NAME, NVL(V.VCTN_USE_DAYS, 0) AS VCTN_USE_DAYS, PSN.PSTN_NAME, D.DPRTMNT_NAME, ROUND(MONTHS_BETWEEN(SYSDATE, PA.START_DAY)) AS MONTHS
+		FROM EMPLY E LEFT OUTER JOIN (SELECT V.EMPLY_NO, SUM(VCTN_USE_DAYS)AS VCTN_USE_DAYS
+		                                FROM VCTN V
+		                                GROUP BY V.EMPLY_NO)V
+		                                ON E.EMPLY_NO = V.EMPLY_NO
+		            INNER JOIN PRSNL_APNTMNTS PA
+		            ON E.EMPLY_NO = PA.EMPLY_NO
+		            AND PA.END_DAY IS NULL
+		            INNER JOIN PSTN PSN
+		            ON PA.PSTN_NO = PSN.PSTN_NO
+		            INNER JOIN DPRTMNT D
+		            ON PA.DPRTMNT_NO = D.DPRTMNT_NO
+		            <if test="srch_txt != null and srch_txt != ''">
+					AND D.DPRTMNT_NO = #{srch_dpnt}
+					WHERE E.EMPLY_NAME LIKE '%'||#{srch_txt}||'%'
+					</if>            
+		ORDER BY E.EMPLY_NO
+	</select>
+	
+	<select id="getSpList" parameterType="hashmap" resultType="hashmap">
+	SELECT VK.KIND_NAME, TO_CHAR(VCTN_START_DAY, 'YYYY-MM-DD') AS VCTN_START_DAY, TO_CHAR(VCTN_END_DAY, 'YYYY-MM-DD') AS VCTN_END_DAY
+	FROM EMPLY E INNER JOIN VCTN V 
+            ON E.EMPLY_NO = V.EMPLY_NO
+            AND E.EMPLY_NO = #{emplyNo}
+            INNER JOIN VCTN_KIND VK
+            ON V.VCTN_KIND_NO = VK.VCTN_KIND_NO
+	</select>
+	
+	<insert id="signinsert" parameterType="hashmap">
+	INSERT INTO PRSNL_APNTMNTS (PRSNL_APNTMNTS_NO, DPRTMNT_NO, PSTN_NO, EMPLY_NO, START_DAY, END_DAY, DLT_YN)
+	VALUES (PRSNL_APNTMNTS_SEQ.NEXTVAL, #{dnameGbn}, #{jnameGbn}, #{empNo2}, TO_DATE(#{rtdate},'YYYY-MM-DD'), TO_CHAR(TO_DATE(#{rtdate}, 'YYYY-MM-DD') - 1, 'YYYY-MM-DD'),1)
+	<!-- 여기 수정해야됨 -->
+	</insert>
+	
+	<insert id="vctnadtWrite" parameterType="hashmap">
+	INSERT INTO VCTN_KIND(VCTN_KIND_NO, KIND_NAME)
+    VALUES(#{vctnKindNo}, #{kindName})
+	</insert>
+	
+	<select id="getVctnKindList" parameterType="hashmap" resultType="hashmap">
+		SELECT VCTN_KIND_NO, KIND_NAME, RANK() OVER (ORDER BY VCTN_KIND_NO ASC) AS
+		RNUM
+		FROM VCTN_KIND
+	</select>
+
+
+	<insert id="vctnInsertWrite" parameterType="hashmap">
+		INSERT INTO VCTN (VCTN_NO,VCTN_KIND_NO,EMPLY_NO,VCTN_START_DAY,VCTN_INFRMTN,VCTN_END_DAY,VCTN_TITLE)
+		VALUES(VCTN_SEQ.NEXTVAL,#{vctnKindNo},#{sEmplyNo},#{vctnStartDay},#{vctnInfrmtn},#{vctnEndDay},#{vctnTitle})
+	</insert>
+	
+	<select id="getindvdlvctnKindList" parameterType="hashmap" resultType="hashmap">
+		SELECT E.EMPLY_NAME AS TITLE,TO_CHAR(VCTN_START_DAY, 'YYYY-MM-DD') AS "START", TO_CHAR(VCTN_END_DAY, 'YYYY-MM-DD') AS "END"
+		FROM VCTN V INNER JOIN EMPLY E
+		ON E.EMPLY_NO = V.EMPLY_NO
+	</select>
+	
+	<select id="useVctnList" parameterType="hashmap" resultType="hashmap">
+		SELECT VCTN_RMNG AS CHONG,NVL(VCTN_USE_DAYS,0) AS USEDAY, NVL(VCTN_RMNG,0)-NVL(VCTN_USE_DAYS,0) AS REMAINDER
+		FROM VCTN
+	</select>
+	
+	<!-- csfIndctrMngmnt  -->
+	<select id="getvwpntList" parameterType="hashmap" resultType="hashmap">
+	SELECT VWPNT_NO, VWPNT_NAME
+	FROM VWPNT
+	WHERE DLT_YN = 1
+	</select>
+
+	<insert id="vwpntWrite" parameterType="hashmap">
+	INSERT INTO VWPNT(VWPNT_NO, VWPNT_NAME)
+	VALUES(VWPNT_SEQ.NEXTVAL, #{vwpnttxt})
+	</insert>
+	
+	<select id="getVwpntnumber" parameterType="hashmap" resultType="hashmap">
+	SELECT MAX(VWPNT_NO)+1 AS VWPNTNEXT, COUNT(*) AS VWPNTCNT
+	FROM VWPNT
+	</select>
+	
+	<select id="getCsfnumber" parameterType="hashmap" resultType="hashmap">
+	SELECT MAX(CSF_NO)+1 AS CSFNEXT, COUNT(*) AS CSFCNT
+	FROM CSF
+	</select>
+
+	<select id="getvwpntName" parameterType="hashmap" resultType="String">
+		SELECT VWPNT_NAME
+		FROM VWPNT
+		WHERE VWPNT_NO = #{vwpntNo}
+	</select>
+	
+	<insert id="csfWrite" parameterType="hashmap">
+		INSERT INTO CSF(CSF_NO, VWPNT_NO, CSF_NAME, EXPLNTN)
+		VALUES(CSF_SEQ.NEXTVAL,#{vwpntNo}, #{csfName}, #{explnTn})
+	</insert>
+	
+	
+	<select id="getcsfCnt" parameterType="hashmap" resultType="Integer">
+	SELECT COUNT(*) AS CNT
+	FROM CSF C INNER JOIN VWPNT V
+           ON C.VWPNT_NO = V.VWPNT_NO
+    WHERE V.DLT_YN = 1
+    AND C.DLT_YN = 1
+	</select>
+	
+	<select id="getcsfList" parameterType="hashmap" resultType="hashmap">
+	SELECT B.CSF_NO, B.VWPNT_NAME, B.CSF_NAME, B.EXPLNTN 
+	FROM(SELECT CSF_NO, VWPNT_NAME, CSF_NAME, EXPLNTN,
+            ROW_NUMBER() OVER(ORDER BY C.CSF_NO DESC) AS RNUM
+            FROM CSF C INNER JOIN VWPNT V
+                    ON C.VWPNT_NO = V.VWPNT_NO
+                    WHERE V.DLT_YN = 1
+                    AND C.DLT_YN = 1)B
+	WHERE B.RNUM BETWEEN #{startCnt} AND #{endCnt}
+	</select>
+	
+	<update id="csfdel" parameterType="hashmap">
+	UPDATE CSF SET DLT_YN = 0
+	WHERE CSF_NO IN 
+	<foreach collection="chk" item="item" index="index" separator="," open="(" close=")">
+		#{item}
+	</foreach>
+	</update>
+	
+	<!-- kpiMngmnt  -->
+	
+	<select id="getkpicsfList" parameterType="hashmap" resultType="hashmap">
+	SELECT CSF_NO, CSF_NAME
+	FROM CSF
+	WHERE DLT_YN = 1
+	</select>
+	
+	<select id="getkpiindctorList" parameterType="hashmap" resultType="hashmap">
+	SELECT INDCTOR_NO, INDCTOR_NAME
+	FROM INDCTOR
+	</select>
+	
+	<select id="getcsfName" parameterType="hashmap" resultType="hashmap">
+		SELECT CSF_NO, CSF_NAME
+		FROM CSF
+		WHERE CSF_No = #{csfNo}
+	</select>
+	
+	<select id="getindctorName" parameterType="hashmap" resultType="hashmap">
+		SELECT INDCTOR_NO, INDCTOR_NAME
+		FROM INDCTOR
+		WHERE INDCTOR_NO = #{indctorNo}
+	</select>
+	
+	<select id="getkpiList" parameterType="hashmap" resultType="hashmap">
+	SELECT A.CSF_NO, A.CSF_NAME, A.KPI_NO, A.KPI_NAME, A.EXPLNTN, A.INDCTOR_NO, A.INDCTOR_NAME
+	FROM(SELECT B.CSF_NO, B.CSF_NAME, B.KPI_NO, B.KPI_NAME, B.EXPLNTN, I.INDCTOR_NO, I.INDCTOR_NAME,
+	ROW_NUMBER() OVER(ORDER BY B.CSF_NO DESC) AS RNUM
+	FROM(SELECT C.CSF_NO, C.CSF_NAME, K.KPI_NO, K.KPI_NAME, K.EXPLNTN,K.INDCTOR_NO
+	FROM KPI K INNER JOIN CSF C
+            	ON K.CSF_NO = C.CSF_NO
+            	WHERE K.DLT_YN=1
+            	AND C.DLT_YN=1) B INNER JOIN INDCTOR I
+                                            ON B.INDCTOR_NO = I.INDCTOR_NO
+                                            WHERE 1 = 1)A
+	 WHERE A.RNUM BETWEEN #{startCnt} AND #{endCnt}   
+	</select>
+	
+	<select id="getkpiCnt" parameterType="hashmap" resultType="Integer">
+	SELECT COUNT(*) AS CNT
+	FROM(SELECT A.CSF_NO, A.CSF_NAME, A.KPI_NO, A.KPI_NAME, A.EXPLNTN, A.INDCTOR_NO, A.INDCTOR_NAME
+	FROM(SELECT B.CSF_NO, B.CSF_NAME, B.KPI_NO, B.KPI_NAME, B.EXPLNTN, I.INDCTOR_NO, I.INDCTOR_NAME, 
+	ROW_NUMBER() OVER(ORDER BY B.CSF_NO DESC) AS RNUM
+	FROM(SELECT C.CSF_NO, C.CSF_NAME, K.KPI_NO, K.KPI_NAME, K.EXPLNTN,K.INDCTOR_NO
+	FROM KPI K INNER JOIN CSF C
+           		 ON K.CSF_NO = C.CSF_NO
+            	WHERE K.DLT_YN=1
+            	AND C.DLT_YN=1) B INNER JOIN INDCTOR I
+                                            ON B.INDCTOR_NO = I.INDCTOR_NO
+                                            WHERE 1 = 1) A 
+	)	
+	</select>
+	
+	<select id="getKpinumber" parameterType="hashmap" resultType="hashmap">
+	SELECT MAX(KPI_NO)+1 AS KPINEXT, COUNT(*) AS KPICNT
+	FROM KPI
+	</select>
+	
+	<insert id="kpiWrite" parameterType="hashmap">
+		INSERT INTO KPI(KPI_NO, CSF_NO, INDCTOR_NO, KPI_NAME, EXPLNTN)
+		VALUES(KPI_SEQ.NEXTVAL, #{csfNo}, #{indctorNo}, #{kpiName}, #{explnTn})
+	</insert>
+	
+	<update id="kpidel" parameterType="hashmap">
+	UPDATE KPI SET DLT_YN = 0
+	WHERE KPI_NO IN 
+	<foreach collection="chk2" item="item" index="index" separator="," open="(" close=")">
+		#{item}
+	</foreach>
+	</update>
+	
+	
+	<!-- kpiIndctrMngmnt -->
+	<select id="getindctorList" parameterType="hashmap" resultType="hashmap">
+ 	SELECT A.INDCTOR_NO, A.INDCTOR_NAME, A.MSR
+	FROM(SELECT INDCTOR_NO, INDCTOR_NAME, MSR,
+	ROW_NUMBER() OVER(ORDER BY INDCTOR_NO DESC) AS RNUM
+	FROM INDCTOR) A
+	WHERE A.RNUM BETWEEN #{startCnt} AND #{endCnt}   
+	</select>
+	
+	<select id="getindctorCnt" parameterType="hashmap" resultType="Integer">
+	SELECT COUNT(*) AS CNT
+	FROM(SELECT A.INDCTOR_NO, A.INDCTOR_NAME, A.MSR
+	FROM(SELECT INDCTOR_NO, INDCTOR_NAME, MSR,
+	ROW_NUMBER() OVER(ORDER BY INDCTOR_NO DESC) AS RNUM
+	FROM INDCTOR) A 
+	)
+	</select>
+	
+	<select id="getindctornumber" parameterType="hashmap" resultType="hashmap">
+	SELECT MAX(INDCTOR_NO)+1 AS INDCTORNEXT, COUNT(*) AS INDCTORCNT
+	FROM INDCTOR
+	</select>
+		
+	<insert id="indctorWrite" parameterType="hashmap">
+		INSERT INTO INDCTOR(INDCTOR_NO, INDCTOR_NAME, MSR)
+		VALUES(INDCTOR_SEQ.NEXTVAL, #{indctorName}, #{msR})
+	</insert>
+	
+	<!-- kpiIndctrAlctn -->
+	
+	<select id="getkpihdList" parameterType="hashmap" resultType="hashmap">
+	SELECT C.KPI_NO, C.KPI_NAME, C.INDCTOR_NO, C.INDCTOR_NAME, C.MSR, C.BSC_NO, C.STNDRD_BSC_NO, C.GOAL_VALUE,C.PRFRMNC_VALUE       
+	FROM(SELECT A.KPI_NO, A.KPI_NAME, A.INDCTOR_NO, A.INDCTOR_NAME, A.MSR, B.BSC_NO, B.STNDRD_BSC_NO, B.GOAL_VALUE, B.PRFRMNC_VALUE,
+	ROW_NUMBER() OVER(ORDER BY A.KPI_NO DESC) AS RNUM
+	FROM(SELECT K.KPI_NO, K.KPI_NAME, I.INDCTOR_NO, I.INDCTOR_NAME, I.MSR
+	FROM KPI K INNER JOIN INDCTOR I
+                	ON K.INDCTOR_NO = I.INDCTOR_NO
+                	WHERE K.DLT_YN=1 ) A INNER JOIN BSC B
+                                               ON A.KPI_NO = B.KPI_NO) C
+	WHERE C.RNUM BETWEEN #{startCnt} AND #{endCnt}  
+	</select>
+	
+	<select id="getkpihdCnt" parameterType="hashmap" resultType="Integer">
+	SELECT COUNT(*) AS CNT
+	FROM(SELECT C.KPI_NO, C.KPI_NAME, C.INDCTOR_NO, C.INDCTOR_NAME,C.MSR, C.BSC_NO, C.STNDRD_BSC_NO, C.GOAL_VALUE,C.PRFRMNC_VALUE       
+	FROM(SELECT A.KPI_NO, A.KPI_NAME, A.INDCTOR_NO, A.INDCTOR_NAME, A.MSR, B.BSC_NO, B.STNDRD_BSC_NO, B.GOAL_VALUE, B.PRFRMNC_VALUE,
+	ROW_NUMBER() OVER(ORDER BY A.KPI_NO DESC) AS RNUM
+	FROM(SELECT K.KPI_NO, K.KPI_NAME, I.INDCTOR_NO, I.INDCTOR_NAME, I.MSR
+	FROM KPI K INNER JOIN INDCTOR I
+                	ON K.INDCTOR_NO = I.INDCTOR_NO
+                	WHERE K.DLT_YN=1 ) A INNER JOIN BSC B
+                                                ON A.KPI_NO = B.KPI_NO) C
+                                                )
+	</select>
+	
+	<select id="getkpiIndcList" parameterType="hashmap" resultType="hashmap">
+	SELECT KPI_NO, KPI_NAME
+	FROM KPI
+	WHERE DLT_YN = 1
+	</select>
+	
+	<select id="getkpiindctorName" parameterType="hashmap" resultType="hashmap">
+    SELECT A.KPI_NO, A.KPI_NAME, A.INDCTOR_NO, A.INDCTOR_NAME, A.MSR 
+	FROM(SELECT KPI_NO, KPI_NAME, I.INDCTOR_NO, I.INDCTOR_NAME, I.MSR 	
+ 	FROM KPI K INNER JOIN INDCTOR I
+                                ON K.INDCTOR_NO = I.INDCTOR_NO
+                                WHERE K.DLT_YN = 1) A
+	WHERE A.KPI_NO = #{kpiNo}
+	</select>
+	
+	<insert id="goalWrite" parameterType="hashmap">
+		INSERT INTO BSC(BSC_NO, STNDRD_BSC_NO, KPI_NO, DPRTMNT_NO, EMPLY_NO, GOAL_VALUE)
+		VALUES(BSC_SEQ.NEXTVAL, #{yyyy}, #{kpiNo}, #{DprtmntNo}, #{EmplyNo}, #{goalValue})
+	</insert>
+	
+	<select id="getBscStdNo" parameterType="hashmap" resultType="Integer">
+	SELECT STNDRD_BSC_NO
+	FROM STNDRD_BSC
+	WHERE STNDRD_YEAR = TO_CHAR(SYSDATE, 'YYYY')
+	</select>
+	
+	<select id="getBscnumber" parameterType="hashmap" resultType="hashmap">
+	SELECT MAX(BSC_NO)+1 AS BSCNEXT, COUNT(*) AS BSCCNT
+	FROM BSC
+	</select>
+	
+	<select id="getPopupName" parameterType="hashmap" resultType="hashmap">
+	SELECT C.KPI_NO, C.KPI_NAME, C.INDCTOR_NO, C.INDCTOR_NAME,C.MSR, C.BSC_NO, C.STNDRD_BSC_NO, C.GOAL_VALUE, C.PRFRMNC_VALUE      
+	FROM(SELECT A.KPI_NO, A.KPI_NAME, A.INDCTOR_NO, A.INDCTOR_NAME, A.MSR, B.BSC_NO, B.STNDRD_BSC_NO, B.GOAL_VALUE, B.PRFRMNC_VALUE
+	FROM(SELECT K.KPI_NO, K.KPI_NAME, I.INDCTOR_NO, I.INDCTOR_NAME, I.MSR
+	FROM KPI K INNER JOIN INDCTOR I
+                	ON K.INDCTOR_NO = I.INDCTOR_NO
+                	WHERE K.DLT_YN=1 ) A INNER JOIN BSC B
+                                                ON A.KPI_NO = B.KPI_NO) C
+                                        
+	WHERE C.BSC_NO = #{bscNo}
+	</select>
+	
+	<update id="prfrmncUpdate" parameterType="hashmap">
+	UPDATE BSC SET PRFRMNC_VALUE = #{prfrmncValue}
+	WHERE BSC_NO = #{bscNo}
+	</update>
+	
+	
+	
+
+	<select id="emplyList" resultType="hashmap">
+	SELECT EMPLY.EMPLY_NO,DPRTMNT_NAME,PSTN_NAME,EMPLY_NAME,TO_CHAR(START_DAY,'YYYY-MM-DD')AS START_DAY
+	FROM EMPLY INNER JOIN PRSNL_APNTMNTS 
+                    ON EMPLY.EMPLY_NO = PRSNL_APNTMNTS.EMPLY_NO
+           INNER JOIN PSTN
+                  ON  PRSNL_APNTMNTS.PSTN_NO= PSTN.PSTN_NO
+           INNER JOIN DPRTMNT
+                ON DPRTMNT.DPRTMNT_NO = PRSNL_APNTMNTS.DPRTMNT_NO
+	
+	ORDER BY EMPLY_NO ASC
+	
+	</select>
+
+	<select id="getincmList" resultType="hashmap">
+	SELECT incm_no,EMPLY_NAME,PSTN_NAME,DPRTMNT_NAME,AMNT 
+	FROM (((INCM INNER JOIN EMPLY
+             ON INCM.EMPLY_NO = EMPLY.EMPLY_NO)
+             INNER JOIN PRSNL_APNTMNTS
+             ON PRSNL_APNTMNTS.EMPLY_NO = EMPLY.EMPLY_NO)
+             INNER JOIN PSTN
+             ON PSTN.PSTN_NO= PRSNL_APNTMNTS.PSTN_NO)
+             INNER JOIN DPRTMNT
+             ON DPRTMNT.DPRTMNT_NO=PRSNL_APNTMNTS.DPRTMNT_NO
+WHERE STNDRD_YEAR = 2020                                                                                                                                                          
+ORDER BY INCM_NO ASC 
+	
+	
+	</select>	
+			
+	<select id="indEmplyList" resultType="hashmap">
+	SELECT EMPLY.EMPLY_NO,DPRTMNT_NAME,PSTN_NAME,EMPLY_NAME,TO_CHAR(START_DAY,'YYYY-MM-DD')AS START_DAY
+	FROM EMPLY INNER JOIN PRSNL_APNTMNTS 
+                    ON EMPLY.EMPLY_NO = PRSNL_APNTMNTS.EMPLY_NO
+           INNER JOIN PSTN
+                  ON  PRSNL_APNTMNTS.PSTN_NO= PSTN.PSTN_NO
+           INNER JOIN DPRTMNT
+                ON DPRTMNT.DPRTMNT_NO = PRSNL_APNTMNTS.DPRTMNT_NO
+	
+	WHERE EMPLY.EMPLY_NO = #{emplyNo}
+	
+	</select>
+	
+	<select id="indPayList" resultType="hashmap">
+    SELECT S.EMPLY_NO,S.SLRY_NO,AMNT,SDS.SLRY_SPRTN_NO, SDS.SLRY_DTLS_SPRTN_NAME,SDS.DLT_YN,B.S_HAP
+    FROM SLRY_DTL SD INNER JOIN SLRY S
+                        ON  SD.SLRY_NO = S.SLRY_NO
+                     INNER JOIN SLRY_DTLS_SPRTN SDS
+                        ON  SD.SLRY_DTLS_SPRTN_NO = SDS.SLRY_DTLS_SPRTN_NO
+                     INNER  JOIN (SELECT SUM(AMNT) AS S_HAP
+    FROM SLRY_DTL SD INNER JOIN SLRY S
+                    ON SD.SLRY_NO = S.SLRY_NO
+                     INNER JOIN SLRY_DTLS_SPRTN SDS
+                    ON SDS.SLRY_DTLS_SPRTN_NO = SD.SLRY_DTLS_SPRTN_NO
+    WHERE EMPLY_NO =#{emplyNo} 
+    AND SLRY_SPRTN_NO =1) B
+        ON  1=1
+    WHERE S.EMPLY_NO = #{emplyNo}
+    AND SLRY_SPRTN_NO = 1
+    
+	</select>
+	<select id="indInsenList" resultType="hashmap">
+	SELECT S.EMPLY_NO,S.SLRY_NO,AMNT,SDS.SLRY_SPRTN_NO,SDS.SLRY_DTLS_SPRTN_NAME,SDS.DLT_YN,B.S_HAP
+    FROM SLRY_DTL SD INNER JOIN SLRY S
+                        ON  SD.SLRY_NO = S.SLRY_NO
+                     INNER JOIN SLRY_DTLS_SPRTN SDS
+                        ON  SD.SLRY_DTLS_SPRTN_NO = SDS.SLRY_DTLS_SPRTN_NO
+                     INNER  JOIN (SELECT SUM(AMNT) AS S_HAP
+    FROM SLRY_DTL SD INNER JOIN SLRY S
+                    ON SD.SLRY_NO = S.SLRY_NO
+                     INNER JOIN SLRY_DTLS_SPRTN SDS
+                    ON SDS.SLRY_DTLS_SPRTN_NO = SD.SLRY_DTLS_SPRTN_NO
+    WHERE EMPLY_NO =#{emplyNo}
+    AND SLRY_SPRTN_NO =2) B
+        ON  1=1
+    WHERE EMPLY_NO =#{emplyNo}
+    AND SLRY_SPRTN_NO =2
+	</select>
+		<select id="indTaxList" resultType="hashmap">
+	SELECT S.EMPLY_NO,S.SLRY_NO,AMNT,SDS.SLRY_SPRTN_NO,SDS.SLRY_DTLS_SPRTN_NAME,SDS.DLT_YN,B.S_HAP
+    FROM SLRY_DTL SD INNER JOIN SLRY S
+                        ON  SD.SLRY_NO = S.SLRY_NO
+                     INNER JOIN SLRY_DTLS_SPRTN SDS
+                        ON  SD.SLRY_DTLS_SPRTN_NO = SDS.SLRY_DTLS_SPRTN_NO
+                     INNER  JOIN (SELECT SUM(AMNT) AS S_HAP
+    FROM SLRY_DTL SD INNER JOIN SLRY S
+                    ON SD.SLRY_NO = S.SLRY_NO
+                     INNER JOIN SLRY_DTLS_SPRTN SDS
+                    ON SDS.SLRY_DTLS_SPRTN_NO = SD.SLRY_DTLS_SPRTN_NO
+    WHERE EMPLY_NO =#{emplyNo}
+    AND SLRY_SPRTN_NO =3) B
+        ON  1=1
+    WHERE EMPLY_NO =#{emplyNo}
+    AND SLRY_SPRTN_NO =3
+	</select>	
+	<!-- <select id="indWorkList" resultType="hashmap">
+	
+	
+	
+	</select>		
+	 -->		
+</mapper>

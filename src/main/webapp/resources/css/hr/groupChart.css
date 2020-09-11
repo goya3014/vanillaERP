@@ -1,0 +1,134 @@
+@charset "UTF-8";
+/* group Chart */
+
+.contents_area {
+   margin-left : 7%;
+   margin-top: 5%;
+}
+
+.contents_area > .jstreeDiv {
+   display: inline-block;
+   min-width: 299px;
+   height : 80%;
+   border: 1px solid black;
+   vertical-align: top;
+}
+
+.jstreeDiv > .jstree {
+   font-size: 12pt;
+   margin-top: 5%;
+} 
+
+.jstreeDiv > .btnDiv {
+   margin-top: 3%;
+   display: block;
+   text-align: center;
+}
+
+.btnDiv >.group_addbtn, .group_delbtn, .group_infobtn{
+   background-color: #004b8d;
+   color : #ffffff;
+   border-radius: 3px;
+   margin-right: 2px;
+}
+
+.contents_area >.rightDiv {
+   display: inline-block;
+   min-width: 299px;
+   height : 80%;
+   border: 1px solid black;
+   vertical-align: top;
+   margin-left: 3%;
+}
+
+.rightDiv > .add_group_Div {
+	display: inline-block;
+	max-width: 300px;
+	margin: 3% 10%;
+}
+
+.delBtnDiv {
+	margin: 3% 30%;
+	max-width: 300px;
+	display: inline-block;
+}
+
+.addgroupBtn, .cangroupBtn, .delgroupBtn, .delcangroupBtn{
+   display : inline-block;
+   width: 50px;
+   background-color: #004B8D;
+   color : white;
+   border-radius: 3px;
+   margin-right: 2px;
+   height : 25px;
+   line-height: 3px;
+   text-align: center;
+}
+
+.dprtmnt_name {
+	max-width: 120px;
+    margin-right: 3px;
+    height: 25px;
+    display: inline-block;
+}
+/* 팝업 글씨  */
+/* 확인이랑 같게하려면 class명 바꾸기 */ 
+.popupcloseBtn {
+	display: table-cell;
+	vertical-align: middle;
+	font-size: 13pt;
+	color: white;
+	text-shadow: 1px 1px 1px gray;	
+}
+
+/* 팝업안에 table */
+.emptable {
+	border-collapse: collapse;
+	margin-top: 10px;
+	margin-left: 10%;
+}
+
+.emptable thead tr{
+	border: 1px solid #000000;
+	background-color: #004B8D;
+	color: #ffffff;
+	height: 30px;
+}
+
+.emptable tbody tr{
+	border-bottom: 1px solid #000000;
+}
+
+.emptable tbody td {
+	border-bottom: 1px solid #000000;
+	font-size: 12pt;
+	text-align: center;
+}
+
+/* 팝업2 */
+.popup_wrap {
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top:0px;
+	left:0px;
+}
+
+.popup_bg {
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top:0px;
+	left:0px;
+	background-color: black;
+	opacity: 0.4; 
+	z-index: 50;
+}
+
+.paging_area {
+    margin: 2% 33%;
+}
+
+.delpopup {
+	font-size: 13pt;
+}
